@@ -1,6 +1,6 @@
 # URL Checker
 
-This Go program reads a file containing a list of URLs and makes a GET request to each URL, and outputs the response code and the url.
+This Go program reads a file containing a list of URLs, makes a parallel GET requests to each URL, and outputs the response codes for them.
 
 ## Usage
 
