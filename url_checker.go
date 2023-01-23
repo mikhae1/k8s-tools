@@ -6,14 +6,18 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
 
 const TIMEOUT = 3
+const LOG_PATH = "logs"
 
 type Res = struct {
 	url  string
@@ -26,12 +30,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	file, err := os.Open(os.Args[1])
+	fname := os.Args[1]
+
+	file, err := os.Open(fname)
 	if err != nil {
 		fmt.Printf("Error opening file: %s\n", err)
 		os.Exit(1)
 	}
 	defer file.Close()
+
+	// init logger
+	if len(LOG_PATH) > 0 {
+		currentTime := time.Now().Format("01-02-06_15-04-05")
+
+		logFile, err := os.Create(LOG_PATH + "/" + strings.ReplaceAll(fname, "/", "-") + "-" + currentTime + ".log")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer logFile.Close()
+		log.SetFlags(0)
+
+		// redirect standard output to the log file
+		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+	}
 
 	var lines []string
 	scanner := bufio.NewScanner(file)
@@ -88,8 +109,26 @@ func main() {
 		res = append(res, <-responseCodes)
 	}
 
-	fmt.Printf("\nThe results:\n")
-	for i := 0; i < len(res); i++ {
-		fmt.Printf("-> %v\n", res[i])
+	sort.Slice(res, func(i, j int) bool { return res[i].code < res[j].code })
+	log.Printf("\nAll response codes (%v urls):\n", len(res))
+	for i, r := range res {
+		log.Printf("%4v. %v, response: %v \n", i+1, r.url, r.code)
 	}
+
+	res200 := filterByCode(res, 200)
+	log.Printf("\nResponse codes with 200 code (%v urls):\n", len(res200))
+	for i, r := range res200 {
+		log.Printf("%4v. %v, response: %v \n", i+1, r.url, r.code)
+	}
+
+}
+
+func filterByCode(res []Res, code int) []Res {
+	var filteredRes []Res
+	for _, r := range res {
+		if r.code == code {
+			filteredRes = append(filteredRes, r)
+		}
+	}
+	return filteredRes
 }
