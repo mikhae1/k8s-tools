@@ -16,8 +16,8 @@ import (
 	"time"
 )
 
-const TIMEOUT = 3
-const LOG_PATH = "logs"
+const TIMEOUT = 4
+const LOG_PATH = "./logs"
 
 type Res = struct {
 	url  string
@@ -39,19 +39,8 @@ func main() {
 	}
 	defer file.Close()
 
-	// init logger
 	if len(LOG_PATH) > 0 {
-		currentTime := time.Now().Format("01-02-06_15-04-05")
-
-		logFile, err := os.Create(LOG_PATH + "/" + strings.ReplaceAll(fname, "/", "-") + "-" + currentTime + ".log")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer logFile.Close()
-		log.SetFlags(0)
-
-		// redirect standard output to the log file
-		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+		defer initLogger(LOG_PATH, fname).Close()
 	}
 
 	var lines []string
@@ -83,8 +72,8 @@ func main() {
 				url = "https://" + line
 			}
 
-			resp, err := client.Get(url)
 			var dnsErr *net.DNSError
+			resp, err := client.Get(url)
 			if err != nil {
 				if errors.As(err, &dnsErr) {
 					fmt.Printf("Can't resolve %s\n", line)
@@ -97,8 +86,6 @@ func main() {
 			}
 
 			defer resp.Body.Close()
-
-			// Send the response code to the channel
 			responseCodes <- Res{url, resp.StatusCode}
 		}(line)
 	}
@@ -110,13 +97,13 @@ func main() {
 	}
 
 	sort.Slice(res, func(i, j int) bool { return res[i].code < res[j].code })
-	log.Printf("\nAll response codes (%v urls):\n", len(res))
+	log.Printf("\nAll responses from %v urls:\n", len(res))
 	for i, r := range res {
 		log.Printf("%4v. %v, response: %v \n", i+1, r.url, r.code)
 	}
 
 	res200 := filterByCode(res, 200)
-	log.Printf("\nResponse codes with 200 code (%v urls):\n", len(res200))
+	log.Printf("\nUrls with response code 200 (%v urls):\n", len(res200))
 	for i, r := range res200 {
 		log.Printf("%4v. %v, response: %v \n", i+1, r.url, r.code)
 	}
@@ -131,4 +118,18 @@ func filterByCode(res []Res, code int) []Res {
 		}
 	}
 	return filteredRes
+}
+
+func initLogger(logPath string, fname string) *os.File {
+	currentTime := time.Now().Format("01-02-06_15-04-05")
+
+	logFile, err := os.Create(logPath + "/" + strings.ReplaceAll(fname, "/", "-") + "-" + currentTime + ".log")
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.SetFlags(0)
+
+	// redirect standard output to the log file
+	log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+	return logFile
 }
