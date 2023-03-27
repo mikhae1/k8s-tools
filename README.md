@@ -8,8 +8,9 @@ This Go program reads a file containing a list of URLs, makes a parallel GET req
 
 This will read the file urls.txt and make GET requests to each URL in the file. The output will be in the following format:
 
-    Response code: 200
-    Response code: 404
+    Response codes with 200 code (2 urls):
+        1. https://example.com, response: 200
+        1. https://your-app.k8s.local, response: 200
 
 ## Note
 
