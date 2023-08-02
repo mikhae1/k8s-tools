@@ -14,11 +14,11 @@ import (
 	"time"
 )
 
-var URL = getEnv("URL", "http://example.com") // URL you want to ping
-var DELAY = getEnv("DELAY", "500")            // Delay between requests in ms
-var TIMEOUT = getEnv("TIMEOUT", "5000")				// Request timeout in ms
-var BAUTH_USER = getEnv("BAUTH_USER", "")     // HTTP Basic Auth BAUTH_USER
-var BAUTH_PASS = getEnv("BAUTH_PASS", "")     // HTTP Basic Auth BAUTH_PASS
+var URL = getEnv("URL", "http://example.com").(string)	// URL you want to ping
+var DELAY = getEnv("DELAY", 500).(int)									// Delay between requests in ms
+var TIMEOUT = getEnv("TIMEOUT", 5000).(int)							// Request timeout in ms
+var BAUTH_USER = getEnv("BAUTH_USER", "").(string)			// HTTP Basic Auth BAUTH_USER
+var BAUTH_PASS = getEnv("BAUTH_PASS", "").(string)			// HTTP Basic Auth BAUTH_PASS
 
 type result struct {
 	StatusCode int
@@ -26,34 +26,19 @@ type result struct {
 }
 
 func main() {
-
 	resultChan := make(chan result, 1) // Buffered channel with a capacity of 1
 	var wg sync.WaitGroup
 	var statuses []result
 
-	delay, err := strconv.Atoi(DELAY)
-	if err != nil {
-		fmt.Println("You should set DELAY to integer:", err)
-		return
-	}
+	fmt.Printf("Pinging %s with a delay of %vms (timeout %vms)...\n", URL, DELAY, TIMEOUT)
 
-	fmt.Printf("Pinging %s with a delay of %vms...\n", URL, delay)
-
-	timeout := time.Duration(3*delay) * time.Millisecond
-	if TIMEOUT != "" {
-		t, err := strconv.Atoi(TIMEOUT)
-		if err != nil {
-			fmt.Println("You should set DELAY to integer:", err)
-			return
-		}
-		timeout = time.Duration(t) * time.Millisecond
-	}
+	timeout := time.Duration(TIMEOUT) * time.Millisecond
 
 	go func() {
 		for {
 			wg.Add(1)
 			go pingURL(URL, resultChan, &wg, timeout)
-			time.Sleep(time.Duration(delay) * time.Millisecond)
+			time.Sleep(time.Duration(DELAY) * time.Millisecond)
 		}
 	}()
 
@@ -144,22 +129,35 @@ func printResults(statuses []result) {
 	fmt.Printf("\n\n")
 
 	uptime := 100.0 - (float64(downtime) / float64(len(statuses)) * 100.0)
-	delayInt, err := strconv.Atoi(DELAY)
-	if err != nil {
-		fmt.Println("Error converting DELAY to integer:", err)
-		return
-	}
-	totalDowntime := float64(downtime) * float64(delayInt) / 1000.0 // Convert DELAY to integer before converting to float64
+	totalDowntime := float64(downtime) * float64(DELAY) / 1000.0
+
 	fmt.Printf("Successful Requests: %d\n", successfulRequests)
 	fmt.Printf("Failed Requests: %d\n", downtime)
 	fmt.Printf("Uptime: %.2f%%\n", uptime)
 	fmt.Printf("Total Downtime: %.2f seconds\n", totalDowntime)
 }
 
-func getEnv(key, fallback string) string {
+func getEnv(key string, fallback interface{}) interface{} {
 	val, exists := os.LookupEnv(key)
 	if !exists {
-		val = fallback
+		return fallback
 	}
-	return val
+
+	// Check the type of the fallback value to convert the environment variable accordingly
+	switch fallback.(type) {
+	case string:
+		return val
+	case int:
+		intVal, err := strconv.Atoi(val)
+		if err != nil {
+			fmt.Printf("Error: Environment variable '%s' must be an integer, but got '%s'\n", key, val)
+			os.Exit(1)
+		}
+		return intVal
+	default:
+		fmt.Printf("Error: Unsupported type for fallback value of environment variable '%s'\n", key)
+		os.Exit(1)
+	}
+
+	return nil
 }
