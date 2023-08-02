@@ -1,5 +1,9 @@
 ///usr/bin/true; exec /usr/bin/env go run "$0" "$@"
 
+/**
+/* Watch given list of URLs
+**/
+
 package main
 
 import (

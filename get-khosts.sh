@@ -1,7 +1,28 @@
 #!/bin/bash
 
-# get all namespaces in the cluster
-namespaces=$(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}')
+# Parse command-line arguments
+namespace=""
+while getopts ":n:" opt; do
+  case $opt in
+    n)
+      namespace="$OPTARG"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
+
+namespaces="$namespace"
+# If the '-n' argument was not provided, get all namespaces in the cluster
+if [ -z "$namespace" ]; then
+  namespaces=$(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}')
+fi
 
 # loop through each namespace
 for namespace in $namespaces; do
@@ -24,7 +45,7 @@ for namespace in $namespaces; do
     healthcheck_urls=$(kubectl describe deployment $app --namespace $namespace 2>/dev/null | grep -o 'http[s]\?://[^ ]\+')
 
     # get the ingress hosts
-    ingress_hosts=$(kubectl get ingress --namespace $namespace $app -o jsonpath="{.spec.rules[*].host}" 2>/dev/null)
+    ingress_hosts=$(kubectl get ingress --namespace $namespace -o jsonpath="{.items[*].spec.rules[*].host}" 2>/dev/null)
 
     # print out results
     if [ ! -z "$urls" ]; then
@@ -37,9 +58,12 @@ for namespace in $namespaces; do
       echo "$healthcheck_urls" | sed 's/^/- /' | sed 's/^/      /'
     fi
 
-    if [[ ! -z "${ingress_hosts// }" ]]; then
+    if [[ ! -z "$ingress_hosts" ]]; then
       echo "    Ingress Hosts:"
-      echo "$ingress_hosts" | sed 's/ /\n/g' | sed 's/^/      - /'
+      # loop through each ingress host and print them on a new line
+      for host in $ingress_hosts; do
+        echo "      - $host"
+      done
     fi
   done
 done

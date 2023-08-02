@@ -1,8 +1,12 @@
-# URL Checker
+# k8s-tools
+
+Everyday tools for Kubernetes-related activities
+
+## url-watcher
 
 This Go program reads a file containing a list of URLs, makes a parallel GET requests to each URL, and outputs the response codes for them.
 
-## Usage
+### Usage
 
     url_checker.go urls.txt
 
@@ -12,10 +16,6 @@ This will read the file urls.txt and make GET requests to each URL in the file. 
         1. https://example.com, response: 200
         1. https://your-app.k8s.local, response: 200
 
-## Note
-
-Please note that this sample code is intended to serve as an example only and may require additional error handling or other modifications to suit your specific needs.
-
-## Additional dependencies
+### Additional dependencies
 
 This program uses the core packages only.
