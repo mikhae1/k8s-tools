@@ -1,5 +1,11 @@
 ///usr/bin/true; exec /usr/bin/env go run "$0" "$@"
 
+//
+// HTTPinger sends HTTP GET requests to a specified URL at regular intervals
+// and measures the uptime and response status codes of the target server.
+//
+// Copyright (c) 2023 Mikhae1
+
 package main
 
 import (
@@ -9,66 +15,73 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
-var URL = getEnv("URL", "http://example.com").(string)	// URL you want to ping
-var DELAY = getEnv("DELAY", 500).(int)									// Delay between requests in ms
-var TIMEOUT = getEnv("TIMEOUT", 5000).(int)							// Request timeout in ms
-var BAUTH_USER = getEnv("BAUTH_USER", "").(string)			// HTTP Basic Auth BAUTH_USER
-var BAUTH_PASS = getEnv("BAUTH_PASS", "").(string)			// HTTP Basic Auth BAUTH_PASS
+var URL = getArgEnv("URL", "http://example.com").(string)	// URL you want to ping
+var DELAY = getArgEnv("DELAY", 500).(int)									// Delay between requests in ms
+var TIMEOUT = getArgEnv("TIMEOUT", 5000).(int)						// Request timeout in ms
+var BAUTH_USER = getArgEnv("BAUTH_USER", "").(string)			// HTTP Basic Auth BAUTH_USER
+var BAUTH_PASS = getArgEnv("BAUTH_PASS", "").(string)			// HTTP Basic Auth BAUTH_PASS
 
 type result struct {
 	StatusCode int
 	Err        error
+	Timestamp  *time.Time
 }
 
 func main() {
-	resultChan := make(chan result, 1) // Buffered channel with a capacity of 1
 	var wg sync.WaitGroup
-	var statuses []result
+	var results []result
+	resultChan := make(chan result, 1) // Buffered channel with a capacity of 1
+	stopChan := make(chan struct{})    // Signal channel to stop goroutines gracefully
 
-	fmt.Printf("Pinging %s with a delay of %vms (timeout %vms)...\n", URL, DELAY, TIMEOUT)
+	fmt.Printf("-> HTTPing %s with a delay of %vms (timeout %vms)...\n", URL, DELAY, TIMEOUT)
 
 	timeout := time.Duration(TIMEOUT) * time.Millisecond
 
 	go func() {
 		for {
-			wg.Add(1)
-			go pingURL(URL, resultChan, &wg, timeout)
-			time.Sleep(time.Duration(DELAY) * time.Millisecond)
+			select {
+			case <-stopChan:
+				// Stop the goroutine when receiving a signal on stopChan
+				wg.Wait()
+				close(resultChan)
+				return
+			default:
+				wg.Add(1)
+				go httPing(URL, timeout, resultChan, stopChan,  &wg)
+				time.Sleep(time.Duration(DELAY) * time.Millisecond)
+			}
 		}
 	}()
 
-	// stop on Ctrl-C
+	// Stop on Ctrl-C
 	interruptChan := make(chan os.Signal, 1)
-	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(interruptChan, os.Interrupt)
 
 	go func() {
 		<-interruptChan
-		fmt.Println("\nReceived interrupt, waiting for goroutines to finish...")
-		wg.Wait()        // Wait for all goroutines to finish
-		close(resultChan) // Close the resultChan after all goroutines have finished
+		fmt.Printf("\nReceived interrupt, waiting goroutines to finish (timeout=%v): ", timeout)
+		// Signal the goroutine to stop by sending a signal on stopChan
+		close(stopChan)
 	}()
 
-Loop:
-	for {
-		select {
-		case status, ok := <-resultChan:
-			if !ok {
-				break Loop
-			}
-			statuses = append(statuses, status)
-		}
+	// Collect results
+	for r := range resultChan {
+		results = append(results, r)
 	}
 
-	printResults(statuses)
+	printResults(results)
 }
 
-func pingURL(url string, resultChan chan<- result, wg *sync.WaitGroup, timeout time.Duration) {
+func httPing(url string, timeout time.Duration, resultChan chan<- result, stopChan <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	statusCode := 0
+	status := "E"
 
 	client := http.Client{
 		Timeout: timeout,
@@ -76,48 +89,62 @@ func pingURL(url string, resultChan chan<- result, wg *sync.WaitGroup, timeout t
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Println("Error creating HTTP request:", err)
-		status := "E" // Error status code
+		status = "X"
+
 		fmt.Print(status)
-		resultChan <- result{StatusCode: 0, Err: err}
+		timestamp := time.Now()
+		resultChan <- result{StatusCode: statusCode, Err: err, Timestamp: &timestamp}
 		return
 	}
 
+	// Add HTTP Basic Auth headers
 	if BAUTH_USER != "" && BAUTH_PASS != "" {
-		// Add Basic Auth headers
 		authStr := fmt.Sprintf("%s:%s", BAUTH_USER, BAUTH_PASS)
 		authEncoded := base64.StdEncoding.EncodeToString([]byte(authStr))
 		req.Header.Set("Authorization", "Basic "+authEncoded)
 	}
 
-	status := "."
-	resp, err := client.Do(req)
-	if err != nil {
-		status = "E" // Error status code
-		fmt.Print(status)
-		resultChan <- result{StatusCode: 0, Err: err}
+	select {
+	case <-stopChan:
+		// Immediately stop the goroutine if a stop signal is received
 		return
+	default:
+		resp, err := client.Do(req)
+		timestamp := time.Now()
+		if err == nil {
+			status = "."
+			statusCode = resp.StatusCode
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				status = strconv.Itoa(resp.StatusCode)
+			}
+		}
+
+		fmt.Print(status)
+		resultChan <- result{StatusCode: statusCode, Err: err, Timestamp: &timestamp}
 	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		status = strconv.Itoa(resp.StatusCode)
-	}
-	fmt.Print(status)
-
-	resultChan <- result{StatusCode: resp.StatusCode, Err: nil}
 }
 
-func printResults(statuses []result) {
-	fmt.Printf("\nResulting Table:\n")
-	fmt.Printf("Total Requests: %d\n", len(statuses))
+func printResults(results []result) {
 	successfulRequests := 0
 	downtime := 0
-	for _, res := range statuses {
-		fmt.Print("\nResponse Code: ", res.StatusCode)
+	firstTimestamp := time.Time{} // Initialize firstTimestamp with zero value
+
+	fmt.Printf("\nTotal Requests: %d\n", len(results))
+	for _, res := range results {
+		// Calculate the timestamp offset from the first request rounded to seconds
+		timestampOffset := 0.0
+		if res.Timestamp != nil && firstTimestamp.IsZero() {
+			firstTimestamp = *res.Timestamp
+		}
+		if res.Timestamp != nil && !firstTimestamp.IsZero() {
+			timestampOffset = res.Timestamp.Sub(firstTimestamp).Seconds()
+		}
+
+		fmt.Printf("\n[%6.1fs] Response Code: %d", timestampOffset, res.StatusCode)
 		if res.Err != nil {
-			fmt.Print(", ", res.Err)
+			fmt.Printf(", Error: %s", res.Err)
 		}
 
 		if res.StatusCode == http.StatusOK {
@@ -128,7 +155,7 @@ func printResults(statuses []result) {
 	}
 	fmt.Printf("\n\n")
 
-	uptime := 100.0 - (float64(downtime) / float64(len(statuses)) * 100.0)
+	uptime := 100.0 - (float64(downtime) / float64(len(results)) * 100.0)
 	totalDowntime := float64(downtime) * float64(DELAY) / 1000.0
 
 	fmt.Printf("Successful Requests: %d\n", successfulRequests)
@@ -137,27 +164,55 @@ func printResults(statuses []result) {
 	fmt.Printf("Total Downtime: %.2f seconds\n", totalDowntime)
 }
 
-func getEnv(key string, fallback interface{}) interface{} {
-	val, exists := os.LookupEnv(key)
-	if !exists {
-		return fallback
-	}
-
-	// Check the type of the fallback value to convert the environment variable accordingly
-	switch fallback.(type) {
-	case string:
-		return val
-	case int:
-		intVal, err := strconv.Atoi(val)
-		if err != nil {
-			fmt.Printf("Error: Environment variable '%s' must be an integer, but got '%s'\n", key, val)
+// GetEnvOrArg retrieves a setting from environment variables or command-line arguments,
+// with a fallback to a default value.
+//
+// Parameters:
+//   key      string      - The key representing the setting to be retrieved.
+//   fallback interface{} - The fallback value to be used if the setting is not found.
+//
+// Returns:
+//   interface{} - The value of the setting, converted to the appropriate type based on the 'fallback'.
+//
+// Copyright (c) 2023 Mikhae1
+func getArgEnv(key string, fallback interface{}) interface{} {
+	getValue := func(value string) interface{} {
+		switch fallback.(type) {
+		case string:
+			return value
+		case int:
+			intVal, err := strconv.Atoi(value)
+			if err != nil {
+				fmt.Printf("Error: Value '%s' must be an integer, but got '%s'\n", key, value)
+				os.Exit(1)
+			}
+			return intVal
+		default:
+			fmt.Printf("Error: Unsupported type for fallback value of '%s'\n", key)
 			os.Exit(1)
 		}
-		return intVal
-	default:
-		fmt.Printf("Error: Unsupported type for fallback value of environment variable '%s'\n", key)
-		os.Exit(1)
+		return nil
 	}
 
-	return nil
+	// Lookup in environment variables first
+	if val, exists := os.LookupEnv(key); exists {
+		return getValue(val)
+	}
+
+	// Search in os.Args
+	for _, arg := range os.Args[1:] {
+		parts := strings.SplitN(arg, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		k := parts[0]
+		v := parts[1]
+
+		if k == key {
+			return getValue(v)
+		}
+	}
+
+	// If not found, use fallback
+	return fallback
 }
