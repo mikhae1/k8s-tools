@@ -81,44 +81,52 @@ def main():
     print(table)
 
 def get_disk_usage(private_ip):
-    node_name = f"ip-{private_ip.replace('.', '-')}.{AWS_REGION}.compute.internal"
-    cmd = f"kubectl get --raw /api/v1/nodes/{node_name}/proxy/stats/summary"
-    response = subprocess.check_output(cmd, shell=True)
-    response = response.decode("utf-8")
-    json_response = json.loads(response)
+    try:
+        node_name = f"ip-{private_ip.replace('.', '-')}.{AWS_REGION}.compute.internal"
+        cmd = f"kubectl get --raw /api/v1/nodes/{node_name}/proxy/stats/summary"
+        response = subprocess.check_output(cmd, shell=True)
+        response = response.decode("utf-8")
+        json_response = json.loads(response)
 
-    if "node" in json_response:
-        fs_info = json_response["node"].get("fs", {})
-        if fs_info:
-            capacity_bytes = fs_info.get("capacityBytes", 0)
-            used_bytes = fs_info.get("usedBytes", 0)
-            usage_percent = (used_bytes / capacity_bytes) * 100
-            return round(usage_percent, 1)
-    return None
+        if "node" in json_response:
+            fs_info = json_response["node"].get("fs", {})
+            if fs_info:
+                capacity_bytes = fs_info.get("capacityBytes", 0)
+                used_bytes = fs_info.get("usedBytes", 0)
+                usage_percent = (used_bytes / capacity_bytes) * 100
+                return round(usage_percent, 1)
+        return None
+    except Exception as e:
+        print(f"ERROR: {e}")
+        return None
 
 def get_eph_usage(api, core_api, private_ip):
-    node_list = api.list_cluster_custom_object("metrics.k8s.io", "v1beta1", "nodes")
-    node_name = f"ip-{private_ip.replace('.', '-')}.{AWS_REGION}.compute.internal"
-    for node in node_list["items"]:
-        if node["metadata"]["name"] == node_name:
-            node_status = core_api.read_node_status(node_name)
-            allocatable_keys = node_status.status.allocatable.keys()
-            capacity_keys = node_status.status.capacity.keys()
+    try:
+        node_list = api.list_cluster_custom_object("metrics.k8s.io", "v1beta1", "nodes")
+        node_name = f"ip-{private_ip.replace('.', '-')}.{AWS_REGION}.compute.internal"
+        for node in node_list["items"]:
+            if node["metadata"]["name"] == node_name:
+                node_status = core_api.read_node_status(node_name)
+                allocatable_keys = node_status.status.allocatable.keys()
+                capacity_keys = node_status.status.capacity.keys()
 
-            total_disk_key = next((key for key in capacity_keys if "storage" in key), None)
-            used_disk_key = next((key for key in allocatable_keys if "ephemeral-storage" in key), None)
+                total_disk_key = next((key for key in capacity_keys if "storage" in key), None)
+                used_disk_key = next((key for key in allocatable_keys if "ephemeral-storage" in key), None)
 
-            if total_disk_key and used_disk_key:
-                allocatable = int(node_status.status.allocatable[used_disk_key].strip("Ki"))
-                capacity = int(node_status.status.capacity[total_disk_key].strip("Ki"))
+                if total_disk_key and used_disk_key:
+                    allocatable = int(node_status.status.allocatable[used_disk_key].strip("Ki"))
+                    capacity = int(node_status.status.capacity[total_disk_key].strip("Ki"))
 
-                allocatable_mb = round(allocatable / 1024 / 1024 / 1024)
-                capacity_mb = round(capacity / 1024 / 1024)
-                usage = capacity_mb - allocatable_mb
-                usage_percent = (usage / capacity_mb) * 100
-                return round(usage_percent, 1)
+                    allocatable_mb = round(allocatable / 1024 / 1024 / 1024)
+                    capacity_mb = round(capacity / 1024 / 1024)
+                    usage = capacity_mb - allocatable_mb
+                    usage_percent = (usage / capacity_mb) * 100
+                    return round(usage_percent, 1)
 
-    return None
+        return None
+    except Exception as e:
+        print(f"ERROR: {e}")
+        return None
 
 
 def calculate_age(instance_launch_time):
@@ -128,20 +136,29 @@ def calculate_age(instance_launch_time):
 
 
 def get_memory_utilization(api, core_api, private_ip):
-    node_list = api.list_cluster_custom_object("metrics.k8s.io", "v1beta1", "nodes")
-    node_name = f"ip-{private_ip.replace('.', '-')}.{AWS_REGION}.compute.internal"
-    for node in node_list["items"]:
-        if node["metadata"]["name"] == node_name:
-            node_status = core_api.read_node_status(node_name)
-            total_memory = int(
-                node_status.status.capacity["memory"].strip("Ki")
-            )  # Assuming the value is in Kibibytes
-            used_memory = int(
-                node["usage"]["memory"].strip("Ki")
-            )  # Assuming the value is in Kibibytes
-            memory_utilization_percentage = (used_memory / total_memory) * 100
-            return round(memory_utilization_percentage, 1)
-    return None
+    try:
+        node_list = api.list_cluster_custom_object("metrics.k8s.io", "v1beta1", "nodes")
+        node_name = f"ip-{private_ip.replace('.', '-')}.{AWS_REGION}.compute.internal"
+        for node in node_list["items"]:
+            if node["metadata"]["name"] == node_name:
+                try:
+                    node_status = core_api.read_node_status(node_name)
+                    total_memory = int(
+                        node_status.status.capacity["memory"].strip("Ki")
+                    )  # Assuming the value is in Kibibytes
+                    used_memory = int(
+                        node["usage"]["memory"].strip("Ki")
+                    )  # Assuming the value is in Kibibytes
+                    memory_utilization_percentage = (used_memory / total_memory) * 100
+                    return round(memory_utilization_percentage, 1)
+                except KeyError as e:
+                    # Handle KeyError if the expected keys are missing in the node_status or node objects
+                    print(f"KeyError: {e}")
+                    return None
+        return None
+    except Exception as e:
+        print(f"ERROR: {e}")
+        return None
 
 
 def get_all_instances():
@@ -203,23 +220,27 @@ def get_maximum_cpu_utilization(instance_id, start_time, end_time, period=86400)
 def get_cpu_utilization_statistic(instance_id, start_time, end_time, period, statistic):
     cloudwatch = boto3.client("cloudwatch")
 
-    response = cloudwatch.get_metric_statistics(
-        Namespace="AWS/EC2",
-        MetricName="CPUUtilization",
-        Dimensions=[
-            {"Name": "InstanceId", "Value": instance_id},
-        ],
-        StartTime=start_time,
-        EndTime=end_time,
-        Period=period,
-        Statistics=[statistic],
-    )
+    try:
+        response = cloudwatch.get_metric_statistics(
+            Namespace="AWS/EC2",
+            MetricName="CPUUtilization",
+            Dimensions=[
+                {"Name": "InstanceId", "Value": instance_id},
+            ],
+            StartTime=start_time,
+            EndTime=end_time,
+            Period=period,
+            Statistics=[statistic],
+        )
 
-    datapoints = response.get("Datapoints", [])
-    if datapoints:
-        return sum(d[statistic] for d in datapoints) / len(datapoints)
+        datapoints = response.get("Datapoints", [])
+        if datapoints:
+            return sum(d[statistic] for d in datapoints) / len(datapoints)
 
-    return None
+        return None
+    except Exception as e:
+        print(f"ERROR: {e}")
+        return None
 
 
 if __name__ == "__main__":
