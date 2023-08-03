@@ -1,6 +1,14 @@
 # k8s-tools
 
 Everyday tools for Kubernetes-related activities.
+- [k8s-tools](#k8s-tools)
+  - [HTTPinger](#httpinger)
+    - [Usage](#usage)
+    - [Output](#output)
+    - [Configuration](#configuration)
+  - [url-watcher](#url-watcher)
+    - [Usage](#usage-1)
+    - [Additional dependencies](#additional-dependencies)
 
 ## HTTPinger
 HTTPinger is a command-line tool written in Go that sends HTTP GET requests to a specified URL at regular intervals. It measures the uptime and response status codes of the target server.
@@ -11,16 +19,6 @@ The tool operates asynchronously, meaning it can perform multiple requests concu
 ```sh
 $ URL=http://example.com DELAY=300 ./httping.go
 ```
-
-### Configuration
-The following environment variables can be used to configure HTTPinger:
-
-    URL: The URL you want to ping. Defaults to http://example.com.
-    DELAY: Delay between requests in milliseconds. Defaults to 500ms.
-    TIMEOUT: Request timeout in milliseconds. Defaults to 5000ms.
-    BAUTH_USER: HTTP Basic Auth username (optional).
-    BAUTH_PASS: HTTP Basic Auth password (optional).
-
 
 ### Output
 ```sh
@@ -55,9 +53,19 @@ Successful Requests: The number of requests with a successful HTTP response (sta
 - Total Downtime: The total duration of downtime, calculated based on the number of failed requests and the delay between requests.
 
 
+### Configuration
+The following environment variables can be used to configure HTTPinger:
+
+    URL: The URL you want to ping. Defaults to http://example.com.
+    DELAY: Delay between requests in milliseconds. Defaults to 500ms.
+    TIMEOUT: Request timeout in milliseconds. Defaults to 5000ms.
+    BAUTH_USER: HTTP Basic Auth username (optional).
+    BAUTH_PASS: HTTP Basic Auth password (optional).
+
+
 ## url-watcher
 
-This Go program reads a file containing a list of URLs, makes a parallel GET requests to each URL, and outputs the response codes for them.
+This Go tool reads a file containing a list of URLs, makes a parallel GET requests to each URL, and outputs the response codes for them.
 
 ### Usage
 
@@ -71,4 +79,4 @@ This will read the file urls.txt and make GET requests to each URL in the file. 
 
 ### Additional dependencies
 
-This program uses the core packages only.
+This tool uses the core packages only.
