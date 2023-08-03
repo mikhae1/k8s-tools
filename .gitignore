@@ -1,2 +1,5 @@
+.vscode/
+
 urls/
 logs/
+venv/
