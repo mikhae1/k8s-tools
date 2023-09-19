@@ -15,7 +15,7 @@ Everyday tools for Kubernetes-related activities.
     - [Usage](#usage-2)
 
 ## HTTPinger
-HTTPinger is a command-line tool written in Go that sends HTTP GET requests to a specified URL at regular intervals. It measures the uptime and response status codes of the target server.
+HTTPinger is a command-line tool written in Go that sends HTTP GET requests to a specified URL at millisecond intervals. It measures the uptime and response status codes of the target server.
 
 The tool operates asynchronously, meaning it can perform multiple requests concurrently without waiting for each request to complete before starting the next one.
 
@@ -60,11 +60,11 @@ Successful Requests: The number of requests with a successful HTTP response (sta
 ### Configuration
 The following environment variables can be used to configure HTTPinger:
 
-    URL: The URL you want to ping. Defaults to http://example.com.
-    DELAY: Delay between requests in milliseconds. Defaults to 500ms.
-    TIMEOUT: Request timeout in milliseconds. Defaults to 5000ms.
-    BAUTH_USER: HTTP Basic Auth username (optional).
-    BAUTH_PASS: HTTP Basic Auth password (optional).
+- **URL**: The URL you want to ping. Defaults to http://example.com.
+- **DELAY**: Delay between requests in milliseconds. Defaults to 500ms.
+- **TIMEOUT**: Request timeout in milliseconds. Defaults to 5000ms.
+- **BAUTH_USER**: HTTP Basic Auth username (optional).
+- **BAUTH_PASS**: HTTP Basic Auth password (optional).
 
 
 ## url-watcher
@@ -112,7 +112,7 @@ The necessary Python packages installed. You can install them using the followin
     pip3 install -r ./eks-top/requirements.txt
 
 
-AWS CLI configured with the necessary credentials and region. You can configure AWS CLI using aws configure.
+AWS CLI configured with the necessary credentials and region. You can configure AWS CLI using `aws configure` command.
 
 ### Usage
 
