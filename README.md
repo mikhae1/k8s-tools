@@ -2,7 +2,7 @@
 
 Everyday tools for Kubernetes-related activities.
 - [k8s-tools](#k8s-tools)
-  - [HTTPinger](#httpinger)
+  - [HTTPing](#httping)
     - [Usage](#usage)
     - [Output](#output)
     - [Configuration](#configuration)
@@ -14,8 +14,8 @@ Everyday tools for Kubernetes-related activities.
     - [Prerequisites](#prerequisites)
     - [Usage](#usage-2)
 
-## HTTPinger
-HTTPinger is a command-line tool written in Go that sends HTTP GET requests to a specified URL at millisecond intervals. It measures the uptime and response status codes of the target server.
+## HTTPing
+HTTPing is a command-line tool written in Go that sends HTTP GET requests to a specified URL at millisecond intervals. It measures the uptime and response status codes of the target server.
 
 The tool operates asynchronously, meaning it can perform multiple requests concurrently without waiting for each request to complete before starting the next one.
 
@@ -58,7 +58,7 @@ Successful Requests: The number of requests with a successful HTTP response (sta
 
 
 ### Configuration
-The following environment variables can be used to configure HTTPinger:
+The following environment variables can be used to configure HTTPing:
 
 - **URL**: The URL you want to ping. Defaults to http://example.com.
 - **DELAY**: Delay between requests in milliseconds. Defaults to 500ms.
@@ -73,7 +73,7 @@ This Go tool reads a file containing a list of URLs, makes a parallel GET reques
 
 ### Usage
 
-    url_checker.go urls.txt
+    url-watcher/url-watcher.go urls.txt
 
 This will read the file urls.txt and make GET requests to each URL in the file. The output will be in the following format:
 
