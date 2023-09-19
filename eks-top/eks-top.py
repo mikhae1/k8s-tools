@@ -2,11 +2,11 @@
 
 import boto3
 import os
+import subprocess
+import json
 from datetime import datetime, timedelta, timezone
 from prettytable import PrettyTable
 from kubernetes import client, config
-import subprocess
-import json
 
 AWS_REGION = os.getenv("AWS_REGION", "eu-central-1")
 
@@ -168,8 +168,13 @@ def get_all_instances():
 
     instances = []
 
-    clusters = eks.list_clusters()["clusters"]
-    for cluster_name in clusters:
+    try:
+        clusters = eks.list_clusters()
+    except Exception as e:
+        print("ERROR:", e)
+        return instances
+
+    for cluster_name in clusters["clusters"]:
         cluster_info = eks.describe_cluster(name=cluster_name)
         nodegroup_names = eks.list_nodegroups(clusterName=cluster_name)["nodegroups"]
         for nodegroup_name in nodegroup_names:
