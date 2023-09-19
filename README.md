@@ -9,6 +9,10 @@ Everyday tools for Kubernetes-related activities.
   - [url-watcher](#url-watcher)
     - [Usage](#usage-1)
     - [Additional dependencies](#additional-dependencies)
+  - [eks-top](#eks-top)
+    - [Output](#output-1)
+    - [Prerequisites](#prerequisites)
+    - [Usage](#usage-2)
 
 ## HTTPinger
 HTTPinger is a command-line tool written in Go that sends HTTP GET requests to a specified URL at regular intervals. It measures the uptime and response status codes of the target server.
@@ -80,3 +84,36 @@ This will read the file urls.txt and make GET requests to each URL in the file. 
 ### Additional dependencies
 
 This tool uses the core packages only.
+
+## eks-top
+This Python script is designed to monitor AWS EKS clusters and their associated EC2 instances, providing insights into resource utilization such as CPU, memory, ephemeral storage, and disk usage. It uses various AWS and Kubernetes APIs to collect and display this information in a tabular format.
+
+### Output
+
+```sh
++---------------+--------------+--------------+----------------------+------------+------------+------------+---------+----------+-----------+------+
+| Instance Name | Instance Type| Private IP   | Instance ID          | CPU Avg(1d)| CPU Avg(7d)| Max CPU(7d)| Mem Util| Eph.Usage| Disk Util | AGE  |
++---------------+--------------+--------------+----------------------+------------+------------+------------+---------+----------+-----------+------+
+| worker1       | t2.micro     | 10.0.0.101   | i-1234567890abcdef01 | 22.5%      | 23.1%      | 24.7%      | 45.6%   | No Data  | 19.8%     | 15d  |
+| worker2       | m5.large     | 10.0.0.102   | i-234567890abcdef12  | 12.7%      | 14.3%      | 15.9%      | 63.2%   | 28.5%    | 82.1%     | 31d  |
+| worker3       | c5.xlarge    | 10.0.0.103   | i-34567890abcdef23   | 45.8%      | 47.2%      | 49.6%      | 78.9%   | 54.2%    | 12.5%     | 7d   |
+| worker4       | t3.micro     | 10.0.0.104   | i-4567890abcdef3456  | No Data    | No Data    | No Data    | 32.1%   | 16.7%    | 42.8%     | 54d  |
+| worker5       | m4.large     | 10.0.0.105   | i-567890abcdef4567   | 34.2%      | 36.8%      | 38.4%      | 51.3%   | 42.0%    | No Data   | 23d  |
++---------------+--------------+--------------+----------------------+------------+------------+------------+---------+----------+-----------+------+
+```
+
+### Prerequisites
+Before using this script, ensure that you have the following prerequisites:
+
+- Python 3 installed on your system.
+
+The necessary Python packages installed. You can install them using the following command:
+
+    pip3 install -r ./eks-top/requirements.txt
+
+
+AWS CLI configured with the necessary credentials and region. You can configure AWS CLI using aws configure.
+
+### Usage
+
+    ./eks-top/eks-top.py
