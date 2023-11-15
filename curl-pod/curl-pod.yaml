@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl-pod
+  namespace: curl
+spec:
+  containers:
+  - name: curl-container
+    image: curlimages/curl:latest
+    resources:
+      requests:
+        memory: "16Mi"
+        cpu: "5m"
+      limits:
+        memory: "32Mi"
+        cpu: "100m"
+    command: ["sh", "-c"]
+    env:
+    - name: URL
+      vlaue: #<-- put your url here
+    - name: SLEEP_TIMEOUT
+      value: "5"
+    - name: REQUEST_TIMEOUT
+      value: "10"
+    args:
+    - |
+      host=$(echo $URL | awk -F[/:] '{print $4}')
+      while true; do
+        current_ips=$(nslookup $host | awk -F': ' '/Address: / {print $2}' | sort | uniq)
+        if [ "$current_ips" != "$previous_ips" ]; then
+          echo "Resolved IPs for $host have been changed:"
+          echo -e "Old:\n$previous_ips"
+          echo -e "New:\n$current_ips"
+          previous_ips="$current_ips"
+        fi
+
+        response=$(curl -o /dev/null -s --max-time $REQUEST_TIMEOUT -w "%{http_code} %{size_download}" $URL)
+        ts=$(date +"%Y-%m-%d %H:%M:%S")
+        response_code=$(echo $response | awk '{print $1}')
+        response_size=$(echo $response | awk '{print $2}')
+
+        out="[$ts] - URL: $URL, Response Code: $response_code, Response Size: $response_size"
+        if [ "$response_code" -ne 200 ]; then
+          echo "NS lookup:"
+          nslookup $host
+          out="$out, Error"
+        fi
+
+        echo $out
+        sleep $SLEEP_TIMEOUT
+      done
